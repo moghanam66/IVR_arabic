@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify
 import os
 import asyncio
 import openai
@@ -15,26 +15,33 @@ import time
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from flask_cors import CORS
+from flask import Flask, request, jsonify, send_from_directory
+import asyncio
+from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
+
+
+
+
 # Azure OpenAI configuration for embeddings
-OPENAI_API_KEY = "8929107a6a6b4f37b293a0fa0584ffc3"
-OPENAI_API_VERSION = "2023-03-15-preview"
-OPENAI_ENDPOINT = "https://genral-openai.openai.azure.com/"
+OPENAI_API_KEY = "9e76306d48fb4e6684e4094d217695ac"
+OPENAI_API_VERSION = "2024-10-01-preview"
+OPENAI_ENDPOINT = "https://general-openai02.openai.azure.com/"
 EMBEDDING_MODEL = "text-embedding-ada-002"  # Fast embedding model
 
 # GPT‑4o realtime 
-RT_API_KEY = "9e76306d48fb4e6684e4094d217695ac"
-RT_ENDPOINT = "https://general-openai02.openai.azure.com/"
+RT_API_KEY = "FZPood5bYLJ1peRf3cYHR29GVIIBrgryH5TikPUnjOemGzULmkY5JQQJ99BBACHYHv6XJ3w3AAABACOGoYWK"
+RT_ENDPOINT = "https://gptkr.openai.azure.com/openai/realtime/"
 RT_DEPLOYMENT = "gpt-4o-realtime-preview"
-RT_API_VERSION = "2024-10-17"
+RT_API_VERSION = "2024-12-17"
 
 # Azure Cognitive Search 
-SEARCH_SERVICE_NAME = "mainsearch01"          
+SEARCH_SERVICE_NAME = "search-link"          
 SEARCH_INDEX_NAME = "id"                      
-SEARCH_API_KEY = "Y6dbb3ljV5z33htXQEMR8ICM8nAHxOpNLwEPwKwKB9AzSeBtGPav"
+SEARCH_API_KEY = "OGIjhICbQnq4aycCnVQi29stqrLQl4lLfa4ClEYEKuAzSeBoGsjN"
 
 # Redis 
 REDIS_HOST = "AiKr.redis.cache.windows.net"
@@ -42,9 +49,8 @@ REDIS_PORT = 6380
 REDIS_PASSWORD = "OD8wyo8NiVxse6DDkEY19481Xr7ZhQAnfAzCaOZKR2U="
 
 # Speech 
-SPEECH_KEY = "3c358ec45fdc4e6daeecb7a30002a9df"
-SPEECH_REGION = "westus2"
-
+SPEECH_KEY = "96f3229ebe7f4fe9ae4e3a1d01bf2184"
+SPEECH_REGION = "eastus2"
 
 # Thresholds for determining whether a search result is “good enough.”
 SEMANTIC_THRESHOLD = 3.4 
@@ -392,6 +398,8 @@ async def voice_chat_loop():
         print(f"🤖 Bot: {response}")
         speak_response(response)
 
+
+
 @app.route('/voice-chat', methods=['POST'])
 def voice_chat():
     try:
@@ -420,7 +428,6 @@ def voice_chat():
     except Exception as e:
         print(f"Error in /voice-chat: {e}")
         return jsonify({"error": "Internal server error"}), 500
-
 @app.route("/")
 def index():
     return send_from_directory("static", "index.html")
