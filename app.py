@@ -295,29 +295,6 @@ async def get_realtime_response(user_query):
         print(f"❌ Failed to get real-time response: {e}")
         return "عذرًا، حدث خطأ أثناء محاولة الاتصال بخدمة الدعم الفوري. يرجى المحاولة مرة أخرى لاحقًا."
  
-async def get_response(user_query):
-    """
-    Retrieve a response by first trying search (semantic then vector),
-    then falling back to GPT‑4o realtime if no match is found.
-    """
-    print(f"🔍 Processing query: {user_query}")
-    response = get_best_match(user_query)
-    if response:
-        print(f"✅ Found response in cache or search: {response}")
-        return response
- 
-    print("🔍 No match found, falling back to GPT‑4o realtime...")
-    realtime_response = await get_realtime_response(user_query)
-    if realtime_response:
-        print(f"✅ GPT‑4o realtime response: {realtime_response}")
-        try:
-            redis_client.set(user_query, realtime_response, ex=3600)
-            print("✅ Response cached in Redis.")
-        except Exception as e:
-            print(f"❌ Failed to cache response in Redis: {e}")
-        return realtime_response
-    else:
-        return "عذرًا، لم أتمكن من العثور على إجابة. يرجى المحاولة مرة أخرى لاحقًا."
  
 # ------------------------------------------------------------------
 # SPEECH RECOGNITION & SYNTHESIS SETUP
@@ -430,7 +407,24 @@ async def voice_chat(user_query):
     except Exception as e:
         print(f"Error in /voice-chat: {e}")
         return "حدث خطأ أثناء معالجة طلبك."
+async def get_response(user_query):
+    try:
+        if not user_query:
+            return "في انتظار اوامرك"
+        if clean_text(user_query) in ["إنهاء", "خروج"]:
+            return "مع السلامة"
+        if detect_critical_issue(user_query):
+            response = "هذه المشكلة تحتاج إلى تدخل بشري. سأقوم بالاتصال بخدمة العملاء لدعمك."
+            return response
  
+        # Directly await the get_response coroutine without creating a new event loop.
+        response = await get_best_match(user_query)  # Ensure this is awaited
+        if not response:
+            response = await get_realtime_response(user_query)  # Ensure this is awaited
+        return response
+    except Exception as e:
+        print(f"Error in /voice-chat: {e}")
+        return "حدث خطأ أثناء معالجة طلبك."
  
 @app.route("/")
 def index():
@@ -455,7 +449,7 @@ class VoiceChatBot:
         if turn_context.activity.type == "message":
             user_query = turn_context.activity.text
             print(f"Received message: {user_query}")
-            response_text = await voice_chat(user_query)
+            response_text = await get_response(user_query)
             await turn_context.send_activity(response_text)
         elif turn_context.activity.type == "conversationUpdate":
             for member in turn_context.activity.members_added or []:
@@ -492,13 +486,13 @@ def messages():
             result = loop.run_until_complete(
                 asyncio.wait_for(
                     adapter.process_activity(activity, auth_header, bot.on_turn),
-                    timeout=200  # adjust as needed
+                    timeout=300  # adjust as needed
                 )
             )
             # If process_activity returns a result, send it back
             return jsonify(result.body) if result and result.body else Response(status=201)
         except asyncio.TimeoutError:
-            print("⚠️ Bot processing timed out after 60s")
+            print("⚠️ Bot processing timed out after 300s")
             return Response("Request timeout", status=504)
    
     except Exception as e:
@@ -510,10 +504,6 @@ def messages():
  
 if __name__ == "__main__":
     app.run(debug=True)
- 
- 
- 
- 
  
  
  
