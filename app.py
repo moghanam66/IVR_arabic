@@ -425,12 +425,11 @@ async def voice_chat(user_query):
         if detect_critical_issue(user_query):
             response = "هذه المشكلة تحتاج إلى تدخل بشري. سأقوم بالاتصال بخدمة العملاء لدعمك."
             return response
-        # Process the query and generate a response
+        # Process the query and generate a response using a new event loop
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         response = loop.run_until_complete(get_response(user_query))
         loop.close()
- 
         return response
     except Exception as e:
         print(f"Error in /voice-chat: {e}")
@@ -443,7 +442,6 @@ def index():
 # Bot Framework Integration
 # ------------------------------------------------------------------
 from botbuilder.schema import ConversationAccount
- 
  
 # Bot Framework credentials (set via environment or hard-code for testing)
 MICROSOFT_APP_ID = "b0a29017-ea3f-4697-aef7-0cb05979d16c"
@@ -468,7 +466,6 @@ class VoiceChatBot:
                     await turn_context.send_activity(welcome_message)
         else:
             await turn_context.send_activity(f"Received activity of type: {turn_context.activity.type}")
- 
  
 # Create an instance of the bot
 bot = VoiceChatBot()
@@ -500,29 +497,23 @@ def messages():
         if not activity.service_url:
             activity.service_url = "https://linkdev-poc-cfb2fbaxbgf9d4dd.westeurope-01.azurewebsites.net"
        
-       
-   
         auth_header = request.headers.get("Authorization", "")
         print("auth: ", auth_header)
    
         async def call_bot():
             await adapter.process_activity(activity, auth_header, bot.on_turn)
    
-        # Re-use the current event loop thanks to nest_asyncio
-        loop = asyncio.get_event_loop()
+        # Create a new event loop for this request to avoid using a closed loop
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
         loop.run_until_complete(call_bot())
+        loop.close()
         return Response(status=201)
- 
    
     except Exception as e:
         print(f"❌ Error in /api/messages: {e}")
         return Response("Internal server error", status=500)
  
- 
- 
-# ------------------------------------------------------------------
-# Run the Flask application
-# ------------------------------------------------------------------
  
 if __name__ == "__main__":
     app.run(debug=True)
