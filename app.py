@@ -511,7 +511,7 @@ def messages():
         asyncio.set_event_loop(loop)
         try:
             # Increase the timeout to 150 seconds (adjust as needed)
-            loop.run_until_complete(asyncio.wait_for(call_bot(), timeout=150))
+            loop.run_until_complete(asyncio.wait_for(call_bot(), timeout=500))
         except asyncio.TimeoutError:
             print("❌ Bot processing timed out.")
             return Response("Internal server error: Timeout", status=500)
