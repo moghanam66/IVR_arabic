@@ -1,30 +1,29 @@
-import nest_asyncio
-nest_asyncio.apply()  # Allow nested event loops
- 
 from flask import Flask, request, jsonify, send_from_directory, Response
 import os
 import asyncio
 import openai
 import pandas as pd
 import ast
-import json
-import time
-import numpy as np
 from azure.search.documents import SearchClient
 from azure.search.documents.models import VectorizedQuery
 from azure.core.credentials import AzureKeyCredential
 import redis
 import azure.cognitiveservices.speech as speechsdk
 from rtclient import ResponseCreateMessage, RTLowLevelClient, ResponseCreateParams
+import json
+import time
+import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
 from flask_cors import CORS
+import nest_asyncio
+nest_asyncio.apply()
  
-# Bot Framework dependencies
+# Import Bot Framework dependencies
 from botbuilder.core import BotFrameworkAdapter, BotFrameworkAdapterSettings, TurnContext
 from botbuilder.schema import Activity
  
-# Initialize Flask app and enable CORS
 app = Flask(__name__)
-CORS(app)
+CORS(app)  # Enable CORS for all routes
  
 # ------------------------------------------------------------------
 # Configuration for Azure OpenAI, GPT‑4o realtime, Azure Search, Redis, Speech
@@ -36,27 +35,27 @@ OPENAI_API_VERSION = "2023-03-15-preview"
 OPENAI_ENDPOINT = "https://genral-openai.openai.azure.com/"
 EMBEDDING_MODEL = "text-embedding-ada-002"  # Fast embedding model
  
-# GPT‑4o realtime configuration
+# GPT‑4o realtime
 RT_API_KEY = "9e76306d48fb4e6684e4094d217695ac"
 RT_ENDPOINT = "https://general-openai02.openai.azure.com/"
 RT_DEPLOYMENT = "gpt-4o-realtime-preview"
 RT_API_VERSION = "2024-10-17"
  
-# Azure Cognitive Search configuration
+# Azure Cognitive Search
 SEARCH_SERVICE_NAME = "mainsearch01"          
 SEARCH_INDEX_NAME = "id"                      
 SEARCH_API_KEY = "Y6dbb3ljV5z33htXQEMR8ICM8nAHxOpNLwEPwKwKB9AzSeBtGPav"
  
-# Redis configuration
+# Redis
 REDIS_HOST = "AiKr.redis.cache.windows.net"
 REDIS_PORT = 6380
 REDIS_PASSWORD = "OD8wyo8NiVxse6DDkEY19481Xr7ZhQAnfAzCaOZKR2U="
  
-# Speech configuration
+# Speech
 SPEECH_KEY = "3c358ec45fdc4e6daeecb7a30002a9df"
 SPEECH_REGION = "westus2"
  
-# Thresholds for search matching
+# Thresholds for determining whether a search result is “good enough.”
 SEMANTIC_THRESHOLD = 3.4
 VECTOR_THRESHOLD = 0.91
  
@@ -80,16 +79,23 @@ except Exception as e:
     print(f"❌ Failed to load CSV file: {e}")
     exit()
  
-# Normalize column names
+# Normalize column names (convert to lowercase, trim spaces)
 qa_data.rename(columns=lambda x: x.strip().lower(), inplace=True)
+ 
+# Convert the 'id' column to string (fix type conversion error)
 if "id" in qa_data.columns:
     qa_data["id"] = qa_data["id"].astype(str)
+ 
+# Verify required columns exist
 if "question" not in qa_data.columns or "answer" not in qa_data.columns:
     print("❌ CSV file must contain 'question' and 'answer' columns.")
     exit()
  
 # EMBEDDING GENERATION
 def get_embedding(text):
+    """
+    Generate an embedding for the given text using the OpenAI model.
+    """
     try:
         response = client.embeddings.create(
             model=EMBEDDING_MODEL,
@@ -102,6 +108,7 @@ def get_embedding(text):
         print(f"❌ Failed to generate embedding for text '{text}': {e}")
         return None
  
+# Generate embeddings if not already present
 if "embedding" not in qa_data.columns or qa_data["embedding"].isnull().all():
     qa_data["embedding"] = qa_data["question"].apply(get_embedding)
     qa_data.to_csv("embedded_qa_data.csv", index=False)
@@ -118,7 +125,7 @@ else:
     qa_data["embedding"] = qa_data["embedding"].apply(convert_embedding)
     print("✅ Using existing embeddings from CSV.")
  
-# Normalize question text
+# Normalize question text for consistent matching.
 qa_data["question"] = qa_data["question"].str.strip().str.lower()
  
 # UPLOAD DOCUMENTS TO AZURE COGNITIVE SEARCH
@@ -135,7 +142,7 @@ try:
 except Exception as e:
     print(f"❌ Failed to upload documents: {e}")
  
-# Simple query for verification
+# Debug: Run a simple query to verify that documents are in the index.
 try:
     simple_results = search_client.search(
         search_text="*",
@@ -168,6 +175,7 @@ except Exception as e:
 # ------------------------------------------------------------------
  
 def check_redis_cache(query):
+    """Return cached answer if it exists."""
     try:
         cached_answer = redis_client.get(query)
         if cached_answer:
@@ -178,11 +186,14 @@ def check_redis_cache(query):
     return None
  
 def get_best_match(query):
+    """
+    Retrieve the best answer for the query by trying semantic then vector search.
+    """
     cached_response = check_redis_cache(query)
     if cached_response:
         return cached_response
  
-    # Semantic Search
+    # --- Semantic Search ---
     try:
         semantic_results = search_client.search(
             search_text=query,
@@ -207,7 +218,7 @@ def get_best_match(query):
     except Exception as e:
         print(f"❌ Semantic search error: {e}")
  
-    # Vector Search
+    # --- Vector Search ---
     try:
         query_embedding = client.embeddings.create(
             model=EMBEDDING_MODEL,
@@ -243,14 +254,19 @@ def get_best_match(query):
     print("❌ No match found using Semantic or Vector Search")
     return None
  
+# GPT‑4o REALTIME FALLBACK (ASYNC)
 async def get_realtime_response(user_query):
+    """
+    Fallback function: Uses GPT‑4o realtime to generate an answer if both searches fail.
+    Now with added instructions so that the model responds as an Egyptian man.
+    """
     try:
         async with RTLowLevelClient(
             url=RT_ENDPOINT,
             azure_deployment=RT_DEPLOYMENT,
             key_credential=AzureKeyCredential(RT_API_KEY)
         ) as client_rt:
-            # Prepend instructions for Egyptian persona
+            # Prepend instruction for Egyptian persona
             instructions = "أنت رجل عربي. انا لا اريد ايضا اي bold points  في الاجابة  و لا اريد عنواين مرقمة" + user_query
             await client_rt.send(
                 ResponseCreateMessage(
@@ -280,6 +296,10 @@ async def get_realtime_response(user_query):
         return "عذرًا، حدث خطأ أثناء محاولة الاتصال بخدمة الدعم الفوري. يرجى المحاولة مرة أخرى لاحقًا."
  
 async def get_response(user_query):
+    """
+    Retrieve a response by first trying search (semantic then vector),
+    then falling back to GPT‑4o realtime if no match is found.
+    """
     print(f"🔍 Processing query: {user_query}")
     response = get_best_match(user_query)
     if response:
@@ -308,6 +328,7 @@ speech_config.speech_recognition_language = "ar-EG"
 speech_config.speech_synthesis_voice_name = "ar-EG-ShakirNeural"
  
 def recognize_speech():
+    """Listen for a single utterance using the default microphone."""
     audio_config = speechsdk.audio.AudioConfig(use_default_microphone=True)
     recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
     print("Listening... (Speak in Egyptian Arabic)")
@@ -320,6 +341,7 @@ def recognize_speech():
         return ""
  
 def speak_response(text):
+    """Convert the given text to speech and output via the default speaker."""
     audio_output = speechsdk.audio.AudioOutputConfig(use_default_speaker=True)
     synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_output)
     result = synthesizer.speak_text_async(text).get()
@@ -329,10 +351,20 @@ def speak_response(text):
         print("  Reason: {}".format(cancellation.reason))
         print("  Error Details: {}".format(cancellation.error_details))
  
+# HELPER: CLEAN TEXT FOR EXIT CHECK
 def clean_text(text):
+    """
+    Remove common punctuation and whitespace from the beginning and end of the text,
+    then convert to lower case.
+    """
     return text.strip(" .،!؛؟").lower()
  
+# CRITICAL ISSUE DETECTION
 def detect_critical_issue(text):
+    """
+    Detect if the user's input contains a critical issue that should be passed to a human.
+    """
+    # Arabic Trigger Sentences
     trigger_sentences = [
         "تم اكتشاف اختراق أمني كبير.",
         "تمكن قراصنة من الوصول إلى بيانات حساسة.",
@@ -342,12 +374,18 @@ def detect_critical_issue(text):
         "تم استغلال ثغرة أمنية في الشبكة.",
         "هناك محاولة وصول غير مصرح بها إلى الملفات السرية."
     ]
+ 
     # Get embeddings for trigger sentences
     trigger_embeddings = np.array([get_embedding(sent) for sent in trigger_sentences])
+ 
+    # Get embedding for the input text
     text_embedding = np.array(get_embedding(text)).reshape(1, -1)
-    from sklearn.metrics.pairwise import cosine_similarity
+ 
+    # Calculate cosine similarity between the input text and trigger sentences
     similarities = cosine_similarity(text_embedding, trigger_embeddings)
     max_similarity = np.max(similarities)
+ 
+    # If the similarity is above a threshold, consider it a critical issue
     if max_similarity > 0.9:
         print("This issue should be passed to a human.")
         return True
@@ -378,6 +416,7 @@ async def voice_chat_loop():
  
 async def voice_chat(user_query):
     try:
+        # Accept text input from the client
         if not user_query:
             return "في انتظار اوامرك"
         if clean_text(user_query) in ["إنهاء", "خروج"]:
@@ -386,11 +425,15 @@ async def voice_chat(user_query):
         if detect_critical_issue(user_query):
             response = "هذه المشكلة تحتاج إلى تدخل بشري. سأقوم بالاتصال بخدمة العملاء لدعمك."
             return response
-        response = await get_response(user_query)
+        # Process the query and generate a response
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        response = loop.run_until_complete(get_response(user_query))
+        loop.close()
+ 
         return response
     except Exception as e:
         print(f"Error in /voice-chat: {e}")
-        return "عذرًا، حدث خطأ أثناء معالجة استفسارك."
  
 @app.route("/")
 def index():
@@ -399,17 +442,23 @@ def index():
 # ------------------------------------------------------------------
 # Bot Framework Integration
 # ------------------------------------------------------------------
+from botbuilder.schema import ConversationAccount
  
+ 
+# Bot Framework credentials (set via environment or hard-code for testing)
 MICROSOFT_APP_ID = "b0a29017-ea3f-4697-aef7-0cb05979d16c"
 MICROSOFT_APP_PASSWORD = "2fc8Q~YUZMbD8E7hEb4.vQoDFortq3Tvt~CLCcEQ"
+ 
+# Initialize Bot Framework adapter
 adapter_settings = BotFrameworkAdapterSettings(MICROSOFT_APP_ID, MICROSOFT_APP_PASSWORD)
 adapter = BotFrameworkAdapter(adapter_settings)
  
+# Define a bot class that uses your get_response logic
 class VoiceChatBot:
     async def on_turn(self, turn_context: TurnContext):
         if turn_context.activity.type == "message":
             user_query = turn_context.activity.text
-            print(f"Received message via Bot Framework: {user_query}")
+            print(f"Received message: {user_query}")
             response_text = await voice_chat(user_query)
             await turn_context.send_activity(response_text)
         elif turn_context.activity.type == "conversationUpdate":
@@ -420,6 +469,8 @@ class VoiceChatBot:
         else:
             await turn_context.send_activity(f"Received activity of type: {turn_context.activity.type}")
  
+ 
+# Create an instance of the bot
 bot = VoiceChatBot()
  
 @app.route("/api/messages", methods=["POST"])
@@ -429,35 +480,49 @@ def messages():
    
     try:
         body = request.json
+        print(body)
         if not body:
             print("❌ Empty request body received")
             return Response("Empty request body", status=400)
    
         print("🔍 Incoming request JSON:", json.dumps(body, indent=2, ensure_ascii=False))
    
+        # Ensure the activity type is set
         if "type" not in body:
-            print("❌ Missing activity type")
-            return Response("Missing activity type", status=400)
-   
-        # Deserialize the activity and ensure required fields are set
+            body["type"] = "message"
+            print("🔍 updated request JSON:", json.dumps(body, indent=2, ensure_ascii=False))
+                   
+        # Deserialize the incoming JSON into an Activity object
         activity = Activity().deserialize(body)
+       
         if not activity.channel_id:
             activity.channel_id = body.get("channelId", "emulator")
+        if not activity.service_url:
+            activity.service_url = "http://localhost:5000"
+       
+        # Check if conversation.id exists; if not, assign a default
+        if not activity.conversation or not activity.conversation.id:
+            from botbuilder.schema import ConversationAccount
+            activity.conversation = ConversationAccount(id="0946f180-f2c8-11ef-ab67-89f0b065fe48|livechat")
+            print("🔍 Assigned default conversation id")
    
-        auth_header = request.headers.get("Authorization", "")
-        if not auth_header:
-            auth_header = "eyJ0eXAiOiJKV1QiLCJub25jZSI6Im5XV2RDRXBEVDlfWUNUNDdZeVdlSlpGZG83eGxzdVRWMi0wcl9EeUdkQ00iLCJhbGciOiJSUzI1NiIsIng1dCI6ImltaTBZMnowZFlLeEJ0dEFxS19UdDVoWUJUayIsImtpZCI6ImltaTBZMnowZFlLeEJ0dEFxS19UdDVoWUJUayJ9.eyJhdWQiOiJodHRwczovL2dyYXBoLm1pY3Jvc29mdC5jb20vIiwiaXNzIjoiaHR0cHM6Ly9zdHMud2luZG93cy5uZXQvMTM4ZTJmYmEtODBkYS00OTEzLTk1MjQtNzg4NDIzMjRlMDc4LyIsImlhdCI6MTc0MDQwMDc2NCwibmJmIjoxNzQwNDAwNzY0LCJleHAiOjE3NDA0MDYyMjEsImFjY3QiOjEsImFjciI6IjEiLCJhaW8iOiJBWlFBYS84WkFBQUFqSzZldTRJQ25oQ3NDaUd6T3h0bnRFQkRoODdXaXdNWE5mdjBTSlVCV1c2dUpOV1pJVmVsc2VIaTZ4VHR6Y2FIK21vL1gzVng3ajFodnNsMFJxOE9hQUczOVFsSzErZlFpYlhtSlNCbzdWeU1MNWtFa1ZRZmpQS3MrV2NGUnJvQldlQ1FmenN5WWU0L0hhcUpPM3FjZ1lpNE1qandZWW9kNk9wdjJnL0crcE9KaytHd1MvZ1oxSFU4N3kvR0xKTEoiLCJhbHRzZWNpZCI6IjU6OjEwMDMyMDA0MEZCNjdGOTAiLCJhbXIiOlsicHdkIl0sImFwcF9kaXNwbGF5bmFtZSI6Iml2cl9hcmFiaWNfbGluayIsImFwcGlkIjoiYzU0ODQ0MDItYWY3Yy00ZTViLTg3NjYtZDk5NjY5MDE3YmM0IiwiYXBwaWRhY3IiOiIxIiwiZW1haWwiOiJtb2hhbWVkLmdoYW5hbUBsaW5rZGV2LmNvbSIsImlkcCI6Imh0dHBzOi8vc3RzLndpbmRvd3MubmV0L2IwODQwMzFiLWNkYjEtNDIyZS1hNzZhLWE2NTEwY2RiMTdmOC8iLCJpZHR5cCI6InVzZXIiLCJpcGFkZHIiOiIxOTcuNTQuMjYuMjIwIiwibmFtZSI6Ik1vaGFtZWQgR2hhbmFtIiwib2lkIjoiZTNhN2M4ODctNTk1Yy00ZDYyLTk1OTItNzdmYTY2NmEwNzA2IiwicGxhdGYiOiIzIiwicHVpZCI6IjEwMDMyMDA0NTNEQTYyRTYiLCJyaCI6IjEuQVY0QXVpLU9FOXFBRTBtVkpIaUVJeVRnZUFNQUFBQUFBQUFBd0FBQUFBQUFBQUFSQVhwZUFBLiIsInNjcCI6IlVzZXIuUmVhZCIsInNpZCI6IjMxOTdlYzkzLTk2NDgtNGZiOS1iNzM1LWY3YTFiODEwNDczYSIsInNpZ25pbl9zdGF0ZSI6WyJrbXNpIl0sInN1YiI6IjZLOTRsUXBObGkzU1g4ZERsZWNySFR1RDJHc3BFSFEwQXlYY2xWZFFoZ2ciLCJ0ZW5hbnRfcmVnaW9uX3Njb3BlIjoiRVUiLCJ0aWQiOiIxMzhlMmZiYS04MGRhLTQ5MTMtOTUyNC03ODg0MjMyNGUwNzgiLCJ1bmlxdWVfbmFtZSI6Im1vaGFtZWQuZ2hhbmFtQGxpbmtkZXYuY29tIiwidXRpIjoicU5JRzdWREoxME9ydVg1b05XQ2FBQSIsInZlciI6IjEuMCIsIndpZHMiOlsiY2YxYzM4ZTUtMzYyMS00MDA0LWE3Y2ItODc5NjI0ZGNlZDdjIiwiMTNiZDFjNzItNmY0YS00ZGNmLTk4NWYtMThkM2I4MGYyMDhhIl0sInhtc19pZHJlbCI6IjQgNSIsInhtc190Y2R0IjoxNTMyNjEyMjE2fQ.kRTPVdwqttCtOlFdjURBYkjQuhqPVrRf5k_zzRi7Sg1N2C-sbasq4MYf_FK9ddVKRWN_a-vVXyQVvnbbE94yl8IjrlTqTy9Klz4BZOasnQlKQRnNEdVKvrk5z341Jah0aV3dSrlcSSdr46NIwcuHeiwy1TrDm5ZMQX4uUnm91WJN0oIdojc2Q53ZD2l5fVvv63bBlrc8Vs2FfTceMX7BWsTrIAeyyJhK9lwDMQ1ti2esFp7CJSR4Lr8MhCWJK9nRYg3KPqFsClofLg0w3TMHRISL7TkwCFNg8G8RA8lURHMjC-6PNim12fmkwrjVOtHx7WOcWLT6Mgyq2g3KdXqU7Q"
+        auth_header = "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6ImltaTBZMnowZFlLeEJ0dEFxS19UdDVoWUJUayJ9.eyJhdWQiOiJiMGEyOTAxNy1lYTNmLTQ2OTctYWVmNy0wY2IwNTk3OWQxNmMiLCJpc3MiOiJodHRwczovL2xvZ2luLm1pY3Jvc29mdG9ubGluZS5jb20vZDZkNDk0MjAtZjM5Yi00ZGY3LWExZGMtZDU5YTkzNTg3MWRiL3YyLjAiLCJpYXQiOjE3NDA0MTAwNDMsIm5iZiI6MTc0MDQxMDA0MywiZXhwIjoxNzQwNDk2NzQzLCJhaW8iOiJBU1FBMi84WkFBQUEwVzJMTkQ2MDZPaTJLVlQreXRER0txYWpmZkcvakhHZy9CRVhuVzBGeG9zPSIsImF6cCI6ImIwYTI5MDE3LWVhM2YtNDY5Ny1hZWY3LTBjYjA1OTc5ZDE2YyIsImF6cGFjciI6IjEiLCJyaCI6IjEuQVc0QUlKVFUxcHZ6OTAyaDNOV2FrMWh4MnhlUW9yQV82cGRHcnZjTXNGbDUwV3hlQVFCdUFBLiIsInRpZCI6ImQ2ZDQ5NDIwLWYzOWItNGRmNy1hMWRjLWQ1OWE5MzU4NzFkYiIsInV0aSI6IlEybi1raW1JRmtTeUNYQVM2WkFKQUEiLCJ2ZXIiOiIyLjAifQ.dDfVXF1bcVjXj1gFIh-TsIs0V8t0DkJKdevmG4_pBs_8ngsWXa98-GzeyM7fkHG0w4UsHqjOvP13EBmPUs5wA3_XggAPwt5XuGd0W55MCDCnWhv904WQCsB6MqSkXkS4mzgvPJ9hpFL7T-xNLvX3uboNiHMwEIvUBWhlx3pq8dPdngD6e_qBPm_FGO2o_au6TE7pB4k1xR71GPw3unwvE6mUwTc72i8J5jLPvi_3ZplsajJ38Qt3C0PakWHpx9yD_bW15rJIhijOPhOWQtX2HIAizUiEv2PQOT-rGBSg0Q56DiqrbJogidZ-sgK7yY8jQP8CCweYHTAB2j1W1N92ZQ"
+        print("auth: ", auth_header)
    
         async def call_bot():
             await adapter.process_activity(activity, auth_header, bot.on_turn)
    
+        # Re-use the current event loop thanks to nest_asyncio
         loop = asyncio.get_event_loop()
         loop.run_until_complete(call_bot())
         return Response(status=201)
+ 
    
     except Exception as e:
         print(f"❌ Error in /api/messages: {e}")
         return Response("Internal server error", status=500)
+ 
+ 
  
 # ------------------------------------------------------------------
 # Run the Flask application
