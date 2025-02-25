@@ -475,67 +475,45 @@ def messages():
    
     try:
         body = request.json
-        print(body)
         if not body:
-            print("❌ Empty request body received")
             return Response("Empty request body", status=400)
    
-        print("🔍 Incoming request JSON:", json.dumps(body, indent=2, ensure_ascii=False))
-   
-        # Ensure the activity type is set
-        if "type" not in body:
-            body["type"] = "message"
-            print("🔍 Updated request JSON:", json.dumps(body, indent=2, ensure_ascii=False))
-                   
-        # Deserialize the incoming JSON into an Activity object
         activity = Activity().deserialize(body)
-       
         if not activity.channel_id:
             activity.channel_id = body.get("channelId", "emulator")
-        if not activity.service_url:
-            # Make sure this URL is correct and reachable
-            activity.service_url = "https://linkdev-poc-cfb2fbaxbgf9d4dd.westeurope-01.azurewebsites.net"
-       
+   
         auth_header = request.headers.get("Authorization", "")
         if not auth_header:
-            auth_header="Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6ImltaTBZMnowZFlLeEJ0dEFxS19UdDVoWUJUayJ9.eyJhdWQiOiJiMGEyOTAxNy1lYTNmLTQ2OTctYWVmNy0wY2IwNTk3OWQxNmMiLCJpc3MiOiJodHRwczovL2xvZ2luLm1pY3Jvc29mdG9ubGluZS5jb20vZDZkNDk0MjAtZjM5Yi00ZGY3LWExZGMtZDU5YTkzNTg3MWRiL3YyLjAiLCJpYXQiOjE3NDA0NzY2MzcsIm5iZiI6MTc0MDQ3NjYzNywiZXhwIjoxNzQwNTYzMzM3LCJhaW8iOiJBU1FBMi84WkFBQUFzVnYrNXRUT0JkV3ZnVEYrQmVpUkd3azcyRTNKOXl6c1BjdHZjZmR5YU5ZPSIsImF6cCI6ImIwYTI5MDE3LWVhM2YtNDY5Ny1hZWY3LTBjYjA1OTc5ZDE2YyIsImF6cGFjciI6IjEiLCJyaCI6IjEuQVc0QUlKVFUxcHZ6OTAyaDNOV2FrMWh4MnhlUW9yQV82cGRHcnZjTXNGbDUwV3hlQVFCdUFBLiIsInRpZCI6ImQ2ZDQ5NDIwLWYzOWItNGRmNy1hMWRjLWQ1OWE5MzU4NzFkYiIsInV0aSI6IkhxVi1ZcHFoalVtZlJmXzlOXzhuQUEiLCJ2ZXIiOiIyLjAifQ.tkkP-QoPHHc4PqiUJNVUW-VsQwkhHmbFbbf_ZPviliEI7ldAmSYNbEbde9JsZwSHzFNsrYm_Ke3keSa_CVuRshFV2xXoMHTJtDdrU5NyfvN0ifIR1eUoLjIWMUDt0mDNXpHUjvBXKSbO-H7vejz3pk8xTejOMSR36iT6jpxPBEVH-5UdonJPAWGFHjouisOgfginuMJa4ZAFFeivdnGyubw67K8tEJejgwkFllevYaVDM5NEPTZMpDFFhwQKrPZQw_8spE1XEA_LK-SdrzIyWPO1rHbcDkKP5lhD2bHZHBKtrWiZzR_n1D7gZZ0AdT_bHDmJI26NplBEw7F9wNstoA"
-        print("auth: ", auth_header)
- 
-        # Fix 2: Use shared event loop policy
+            auth_header = "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6ImltaTBZMnowZFlLeEJ0dEFxS19UdDVoWUJUayJ9.eyJhdWQiOiJiMGEyOTAxNy1lYTNmLTQ2OTctYWVmNy0wY2IwNTk3OWQxNmMiLCJpc3MiOiJodHRwczovL2xvZ2luLm1pY3Jvc29mdG9ubGluZS5jb20vZDZkNDk0MjAtZjM5Yi00ZGY3LWExZGMtZDU5YTkzNTg3MWRiL3YyLjAiLCJpYXQiOjE3NDA0NzY2MzcsIm5iZiI6MTc0MDQ3NjYzNywiZXhwIjoxNzQwNTYzMzM3LCJhaW8iOiJBU1FBMi84WkFBQUFzVnYrNXRUT0JkV3ZnVEYrQmVpUkd3azcyRTNKOXl6c1BjdHZjZmR5YU5ZPSIsImF6cCI6ImIwYTI5MDE3LWVhM2YtNDY5Ny1hZWY3LTBjYjA1OTc5ZDE2YyIsImF6cGFjciI6IjEiLCJyaCI6IjEuQVc0QUlKVFUxcHZ6OTAyaDNOV2FrMWh4MnhlUW9yQV82cGRHcnZjTXNGbDUwV3hlQVFCdUFBLiIsInRpZCI6ImQ2ZDQ5NDIwLWYzOWItNGRmNy1hMWRjLWQ1OWE5MzU4NzFkYiIsInV0aSI6IkhxVi1ZcHFoalVtZlJmXzlOXzhuQUEiLCJ2ZXIiOiIyLjAifQ.tkkP-QoPHHc4PqiUJNVUW-VsQwkhHmbFbbf_ZPviliEI7ldAmSYNbEbde9JsZwSHzFNsrYm_Ke3keSa_CVuRshFV2xXoMHTJtDdrU5NyfvN0ifIR1eUoLjIWMUDt0mDNXpHUjvBXKSbO-H7vejz3pk8xTejOMSR36iT6jpxPBEVH-5UdonJPAWGFHjouisOgfginuMJa4ZAFFeivdnGyubw67K8tEJejgwkFllevYaVDM5NEPTZMpDFFhwQKrPZQw_8spE1XEA_LK-SdrzIyWPO1rHbcDkKP5lhD2bHZHBKtrWiZzR_n1D7gZZ0AdT_bHDmJI26NplBEw7F9wNstoA"
+   
+        # Process the activity without nesting too many timeouts.
         loop = asyncio.get_event_loop()
-       
-        # Fix 3: Add timeout handling for the entire operation
-        async def process_activity():
-            try:
-                # Fix 4: Add timeout for the actual processing
-                await asyncio.wait_for(
-                    adapter.process_activity(activity, request.headers.get("Authorization", ""), bot.on_turn),
-                    timeout=60  # 60 seconds for actual processing
-                )
-            except asyncio.TimeoutError:
-                print("⚠️ Bot processing timed out after 60s")
-                raise
-            except Exception as e:
-                print(f"❌ Error in adapter processing: {e}")
-                raise
- 
         try:
-            # Fix 5: Use shorter overall timeout
-            loop.run_until_complete(asyncio.wait_for(process_activity(), timeout=150))
+            result = loop.run_until_complete(
+                asyncio.wait_for(
+                    adapter.process_activity(activity, auth_header, bot.on_turn),
+                    timeout=200  # adjust as needed
+                )
+            )
+            # If process_activity returns a result, send it back
+            return jsonify(result.body) if result and result.body else Response(status=201)
         except asyncio.TimeoutError:
-            print("❌ Total processing time exceeded 150 seconds")
+            print("⚠️ Bot processing timed out after 60s")
             return Response("Request timeout", status=504)
-           
-        return Response(status=201)
- 
+   
     except Exception as e:
         print(f"❌ Critical error in /api/messages: {str(e)}")
         return Response("Internal server error", status=500)
  
  
  
+ 
 if __name__ == "__main__":
     app.run(debug=True)
+ 
+ 
+ 
+ 
  
  
  
