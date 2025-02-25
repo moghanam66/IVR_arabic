@@ -498,15 +498,11 @@ def messages():
         if not activity.channel_id:
             activity.channel_id = body.get("channelId", "emulator")
         if not activity.service_url:
-            activity.service_url = "http://localhost:5000"
+            activity.service_url = "https://linkdev-poc-cfb2fbaxbgf9d4dd.westeurope-01.azurewebsites.net"
        
-        # Check if conversation.id exists; if not, assign a default
-        if not activity.conversation or not activity.conversation.id:
-            from botbuilder.schema import ConversationAccount
-            activity.conversation = ConversationAccount(id="0946f180-f2c8-11ef-ab67-89f0b065fe48|livechat")
-            print("🔍 Assigned default conversation id")
+       
    
-        auth_header = "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6ImltaTBZMnowZFlLeEJ0dEFxS19UdDVoWUJUayJ9.eyJhdWQiOiJiMGEyOTAxNy1lYTNmLTQ2OTctYWVmNy0wY2IwNTk3OWQxNmMiLCJpc3MiOiJodHRwczovL2xvZ2luLm1pY3Jvc29mdG9ubGluZS5jb20vZDZkNDk0MjAtZjM5Yi00ZGY3LWExZGMtZDU5YTkzNTg3MWRiL3YyLjAiLCJpYXQiOjE3NDA0MTAwNDMsIm5iZiI6MTc0MDQxMDA0MywiZXhwIjoxNzQwNDk2NzQzLCJhaW8iOiJBU1FBMi84WkFBQUEwVzJMTkQ2MDZPaTJLVlQreXRER0txYWpmZkcvakhHZy9CRVhuVzBGeG9zPSIsImF6cCI6ImIwYTI5MDE3LWVhM2YtNDY5Ny1hZWY3LTBjYjA1OTc5ZDE2YyIsImF6cGFjciI6IjEiLCJyaCI6IjEuQVc0QUlKVFUxcHZ6OTAyaDNOV2FrMWh4MnhlUW9yQV82cGRHcnZjTXNGbDUwV3hlQVFCdUFBLiIsInRpZCI6ImQ2ZDQ5NDIwLWYzOWItNGRmNy1hMWRjLWQ1OWE5MzU4NzFkYiIsInV0aSI6IlEybi1raW1JRmtTeUNYQVM2WkFKQUEiLCJ2ZXIiOiIyLjAifQ.dDfVXF1bcVjXj1gFIh-TsIs0V8t0DkJKdevmG4_pBs_8ngsWXa98-GzeyM7fkHG0w4UsHqjOvP13EBmPUs5wA3_XggAPwt5XuGd0W55MCDCnWhv904WQCsB6MqSkXkS4mzgvPJ9hpFL7T-xNLvX3uboNiHMwEIvUBWhlx3pq8dPdngD6e_qBPm_FGO2o_au6TE7pB4k1xR71GPw3unwvE6mUwTc72i8J5jLPvi_3ZplsajJ38Qt3C0PakWHpx9yD_bW15rJIhijOPhOWQtX2HIAizUiEv2PQOT-rGBSg0Q56DiqrbJogidZ-sgK7yY8jQP8CCweYHTAB2j1W1N92ZQ"
+        auth_header = request.headers.get("Authorization", "")
         print("auth: ", auth_header)
    
         async def call_bot():
@@ -530,3 +526,5 @@ def messages():
  
 if __name__ == "__main__":
     app.run(debug=True)
+ 
+ 
