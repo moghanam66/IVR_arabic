@@ -223,6 +223,25 @@ def messages():
     except Exception as e:
         print(f"❌ Error in /api/messages: {e}")
         return Response("Internal server error", status=500)
+@app.route("/api/chat", methods=["POST"])
+def voice_chat():
+        data = request.json
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+ 
+        user_query = data.get("text")
+        if not user_query:
+            return jsonify({"error": "No text input provided"}), 400
+ 
+        # Process the query and generate a response
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        response = loop.run_until_complete(get_realtime_response(user_query))
+        loop.close()
+ 
+        return jsonify({"response": response})
+ 
+ 
  
  
 if __name__ == "__main__":
