@@ -4,7 +4,7 @@ from botbuilder.schema import ChannelAccount
 from aiohttp import web
 from botbuilder.integration.aiohttp import BotFrameworkAdapter, BotFrameworkAdapterSettings
 import asyncio
-
+#dd
 # Load environment variables
 APP_ID = os.getenv("b0a29017-ea3f-4697-aef7-0cb05979d16c", "")
 APP_PASSWORD = os.getenv("2fc8Q~YUZMbD8E7hEb4.vQoDFortq3Tvt~CLCcEQ", "")
