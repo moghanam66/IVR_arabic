@@ -70,26 +70,7 @@ client = openai.AzureOpenAI(
     azure_endpoint=OPENAI_ENDPOINT
 )
  
-# Load Q&A data
-try:
-    qa_data = pd.read_csv("qa_data.csv", encoding="windows-1256")
-    print("✅ CSV file loaded successfully!")
-    print(qa_data.head())
-except Exception as e:
-    print(f"❌ Failed to load CSV file: {e}")
-    exit()
- 
-# Normalize column names (convert to lowercase, trim spaces)
-qa_data.rename(columns=lambda x: x.strip().lower(), inplace=True)
- 
-# Convert the 'id' column to string (fix type conversion error)
-if "id" in qa_data.columns:
-    qa_data["id"] = qa_data["id"].astype(str)
- 
-# Verify required columns exist
-if "question" not in qa_data.columns or "answer" not in qa_data.columns:
-    print("❌ CSV file must contain 'question' and 'answer' columns.")
-    exit()
+
  
  
  
@@ -101,44 +82,9 @@ if "question" not in qa_data.columns or "answer" not in qa_data.columns:
    
 # GPT‑4o REALTIME FALLBACK (ASYNC)
 async def get_realtime_response(user_query):
-    """
-    Fallback function: Uses GPT‑4o realtime to generate an answer if both searches fail.
-    Now with added instructions so that the model responds as an Egyptian man.
-    """
-    try:
-        async with RTLowLevelClient(
-            url=RT_ENDPOINT,
-            azure_deployment=RT_DEPLOYMENT,
-            key_credential=AzureKeyCredential(RT_API_KEY)
-        ) as client_rt:
-            # Prepend instruction for Egyptian persona
-            instructions = "أنت رجل عربي. انا لا اريد ايضا اي bold points  في الاجابة  و لا اريد عنواين مرقمة" + user_query
-            await client_rt.send(
-                ResponseCreateMessage(
-                    response=ResponseCreateParams(
-                        modalities={"text"},
-                        instructions=instructions
-                    )
-                )
-            )
-            done = False
-            response_text = ""
-            while not done:
-                message = await client_rt.recv()
-                if message is None:
-                    print("❌ No message received from the real-time service.")
-                    break
-                if message.type == "response.done":
-                    done = True
-                elif message.type == "error":
-                    done = True
-                    print(f"Error: {message.error}")
-                elif message.type == "response.text.delta":
-                    response_text += message.delta
-            return response_text
-    except Exception as e:
-        print(f"❌ Failed to get real-time response: {e}")
-        return "عذرًا، حدث خطأ أثناء محاولة الاتصال بخدمة الدعم الفوري. يرجى المحاولة مرة أخرى لاحقًا."
+  
+            return "dnjvvke"
+
  
  
 @app.route("/")
@@ -164,7 +110,7 @@ class VoiceChatBot:
         if turn_context.activity.type == "message":
             user_query = turn_context.activity.text
             print(f"Received message: {user_query}")
-            response_text = await get_realtime_response(user_query)
+            response_text =  get_realtime_response(user_query)
             await turn_context.send_activity(response_text)
         elif turn_context.activity.type == "conversationUpdate":
             for member in turn_context.activity.members_added or []:
