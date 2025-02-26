@@ -230,6 +230,7 @@ def voice_chat():
             return jsonify({"error": "No data provided"}), 400
  
         user_query = data.get("text")
+        print(user_query)
         if not user_query:
             return jsonify({"error": "No text input provided"}), 400
  
@@ -238,6 +239,7 @@ def voice_chat():
         asyncio.set_event_loop(loop)
         response = loop.run_until_complete(get_realtime_response(user_query))
         loop.close()
+        print(response)
  
         return jsonify({"response": response})
  
