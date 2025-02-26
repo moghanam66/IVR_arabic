@@ -1,47 +1,30 @@
-from flask import Flask, request, jsonify, Response
-from botbuilder.core import BotFrameworkAdapter, BotFrameworkAdapterSettings, TurnContext
+import os
+from flask import Flask, request, jsonify
+from botbuilder.core import BotFrameworkAdapter, TurnContext
 from botbuilder.schema import Activity
 
+# Initialize Flask app
 app = Flask(__name__)
 
-# Bot Framework credentials (replace with your actual values)
-MICROSOFT_APP_ID = "b0a29017-ea3f-4697-aef7-0cb05979d16c"
-MICROSOFT_APP_PASSWORD = "2fc8Q~YUZMbD8E7hEb4.vQoDFortq3Tvt~CLCcEQ"
+# Bot Framework Adapter (used to process messages)
+adapter = BotFrameworkAdapter(
+    app_id=os.getenv("b0a29017-ea3f-4697-aef7-0cb05979d16c"), 
+    app_password=os.getenv("2fc8Q~YUZMbD8E7hEb4.vQoDFortq3Tvt~CLCcEQ")
+)
 
-# Initialize Bot Framework adapter
-adapter_settings = BotFrameworkAdapterSettings(MICROSOFT_APP_ID, MICROSOFT_APP_PASSWORD)
-adapter = BotFrameworkAdapter(adapter_settings)
-
-# Define a simple bot class
-class SimpleBot:
-    async def on_turn(self, turn_context: TurnContext):
-        if turn_context.activity.type == "message":
-            await turn_context.send_activity("welcome")
-
-bot = SimpleBot()
-
+# Process incoming messages
 @app.route("/api/messages", methods=["POST"])
-def messages():
-    if request.headers.get("Content-Type", "") != "application/json":
-        return Response("Invalid Content-Type", status=415)
+async def messages():
+    body = await request.get_json()
+    activity = Activity().deserialize(body)
+    
+    async def on_turn(turn_context: TurnContext):
+        if activity.type == "message":
+            # Echo back the user's message
+            await turn_context.send_activity(f"You said: {turn_context.activity.text}")
 
-    try:
-        body = request.json
-        activity = Activity().deserialize(body)
-
-        async def process_activity():
-            await adapter.process_activity(activity, "", bot.on_turn)
-
-        import asyncio
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(process_activity())
-        loop.close()
-        
-        return Response(status=201)
-
-    except Exception as e:
-        return Response(f"Error: {str(e)}", status=500)
+    await adapter.process_activity(activity, request.headers.get("Authorization"), on_turn)
+    return jsonify({})
 
 if __name__ == "__main__":
-    app.run()
+    app.run(port=3978)
