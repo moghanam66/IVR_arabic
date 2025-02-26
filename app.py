@@ -17,7 +17,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from flask_cors import CORS
 import nest_asyncio
 nest_asyncio.apply()
- 
+ #hh
 # Import Bot Framework dependencies
 from botbuilder.core import BotFrameworkAdapter, BotFrameworkAdapterSettings, TurnContext
 from botbuilder.schema import Activity
