@@ -4,7 +4,7 @@ from botbuilder.schema import Activity
 from botbuilder.core import BotFrameworkAdapter, BotFrameworkAdapterSettings, TurnContext
 # Define the app and adapter settings
 app = Flask(__name__)
- 
+#ddd 
 # Set up BotFrameworkAdapter with app credentials (replace with your actual app ID and password)
 APP_ID = "b0a29017-ea3f-4697-aef7-0cb05979d16c"
 APP_PASSWORD = "2fc8Q~YUZMbD8E7hEb4.vQoDFortq3Tvt~CLCcEQ"
