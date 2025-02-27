@@ -1,39 +1,48 @@
-import os
-from botbuilder.core import ActivityHandler, MessageFactory, TurnContext
-from botbuilder.schema import ChannelAccount
-from aiohttp import web
-from botbuilder.integration.aiohttp import BotFrameworkAdapter, BotFrameworkAdapterSettings
-import asyncio
+from botbuilder.core import BotFrameworkAdapter, BotFrameworkAdapterSettings
+from flask import Flask, request, jsonify
+from botbuilder.schema import Activity
+from botbuilder.core import BotFrameworkAdapter, BotFrameworkAdapterSettings, TurnContext
+# Define the app and adapter settings
+app = Flask(__name__)
+ 
+# Set up BotFrameworkAdapter with app credentials (replace with your actual app ID and password)
+APP_ID = "b0a29017-ea3f-4697-aef7-0cb05979d16c"
+APP_PASSWORD = "2fc8Q~YUZMbD8E7hEb4.vQoDFortq3Tvt~CLCcEQ"
+adapter_settings = BotFrameworkAdapterSettings(APP_ID, APP_PASSWORD)
+adapter = BotFrameworkAdapter(adapter_settings)
+ 
+# Define a bot class that uses your get_response logic
+class MyBot:
+    async def on_turn(self, turn_context: TurnContext):
 
-# hhLoad environment variables
-APP_ID = os.getenv("b0a29017-ea3f-4697-aef7-0cb05979d16c", "")
-APP_PASSWORD = os.getenv("2fc8Q~YUZMbD8E7hEb4.vQoDFortq3Tvt~CLCcEQ", "")
+             turn_context.send_activity(f"Received activity of type: {turn_context.activity.type}")
+ 
+# Create an instance of the bot
 
-# Bot Class
-class MyBot(ActivityHandler):
-    async def on_message_activity(self, turn_context: TurnContext):
-        await turn_context.send_activity(MessageFactory.text(f"You said: {turn_context.activity.text}"))
-    
-    async def on_members_added_activity(self, members_added, turn_context: TurnContext):
-        for member in members_added:
-            if member.id != turn_context.activity.recipient.id:
-                await turn_context.send_activity("Hello and welcome!")
-
-# Adapter Settings
-settings = BotFrameworkAdapterSettings(app_id=APP_ID, app_password=APP_PASSWORD)
-adapter = BotFrameworkAdapter(settings)
-
+# Create the bot instance
 bot = MyBot()
-
-async def messages(req):
-    body = await req.json()
-    activity = TurnContext.deserialize(body)
-    auth_header = req.headers.get("Authorization", "")
-    response = await adapter.process_activity(activity, auth_header, bot.on_turn)
-    return web.json_response(response)
-
-app = web.Application()
-app.router.add_post("/api/messages", messages)
-
+ 
+# Error handling for adapter
+async def on_error(context, error):
+    print(f"Error: {error}")
+    await context.send_activity("Oops! Something went wrong.")
+    return True
+ 
+adapter.on_turn_error = on_error
+ 
+# Define the route to handle incoming messages
+@app.route("/api/messages", methods=["POST"])
+async def messages():
+    # Parse the incoming request as an activity
+    if "application/json" not in request.headers["Content-Type"]:
+        return jsonify({"error": "Invalid Content-Type, must be application/json"}), 415
+ 
+    body = await request.json
+    activity = Activity().deserialize(body)
+ 
+    # Route the activity to the BotFrameworkAdapter for processing
+    response = await adapter.process_activity(activity, "", bot.on_turn)
+    return jsonify({"status": "ok"})
+ 
 if __name__ == "__main__":
-    web.run_app(app, host="0.0.0.0", port=3978)
+    app.run(debug=True)
