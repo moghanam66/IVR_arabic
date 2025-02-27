@@ -158,4 +158,4 @@ click==8.1.7
 blinker==1.9.0
 asgiref==3.8.1
 colorama==0.4.6
-MarkupSafe==3.0.
+MarkupSafe==3.0.2
